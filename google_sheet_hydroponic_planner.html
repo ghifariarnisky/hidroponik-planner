@@ -1,0 +1,679 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Jadwal Tanam & Rotation - Kebun Kampung Bugis</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        /* Custom scrollbar for spreadsheet view */
+        .sheet-scroll::-webkit-scrollbar {
+            width: 10px;
+            height: 10px;
+        }
+        .sheet-scroll::-webkit-scrollbar-track {
+            background: #f1f5f9;
+        }
+        .sheet-scroll::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 4px;
+        }
+        .sheet-scroll::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8;
+        }
+        /* Sticky Column Styles */
+        .sticky-col-1 {
+            position: sticky;
+            left: 0;
+            z-index: 20;
+        }
+        .sticky-col-2 {
+            position: sticky;
+            left: 90px;
+            z-index: 20;
+        }
+        .sticky-col-3 {
+            position: sticky;
+            left: 170px;
+            z-index: 20;
+        }
+        .sticky-col-4 {
+            position: sticky;
+            left: 270px;
+            z-index: 20;
+        }
+        /* Sticky Headers */
+        .sticky-header {
+            position: sticky;
+            top: 0;
+            z-index: 30;
+        }
+        .sticky-header-col-1 { position: sticky; top: 0; left: 0; z-index: 40; }
+        .sticky-header-col-2 { position: sticky; top: 0; left: 90px; z-index: 40; }
+        .sticky-header-col-3 { position: sticky; top: 0; left: 170px; z-index: 40; }
+        .sticky-header-col-4 { position: sticky; top: 0; left: 270px; z-index: 40; }
+
+        /* Status cell styling */
+        .status-S { background-color: #fef08a; color: #854d0e; font-weight: 700; } /* Semai - Kuning */
+        .status-T { background-color: #bbf7d0; color: #166534; font-weight: 700; } /* Tanam - Hijau */
+        .status-P { background-color: #fed7aa; color: #9a3412; font-weight: 700; } /* Panen - Oranye */
+        .status-R { background-color: #fecaca; color: #991b1b; font-weight: 700; } /* Rest - Merah/Abu */
+    </style>
+</head>
+<body class="bg-slate-100 text-slate-800 min-h-screen flex flex-col">
+
+    <!-- Header Navigation -->
+    <header class="bg-emerald-800 text-white shadow-md">
+        <div class="max-w-7xl mx-auto px-4 py-3 flex flex-wrap items-center justify-between gap-4">
+            <div class="flex items-center gap-3">
+                <div class="p-2 bg-emerald-700 rounded-lg">
+                    <i data-lucide="sprout" class="w-6 h-6 text-emerald-200"></i>
+                </div>
+                <div>
+                    <h1 class="text-xl font-bold leading-tight">Jadwal Rotasi Kebun Kampung Bugis</h1>
+                    <p class="text-xs text-emerald-200">9 Sistem Hidroponik (A1-C3) & 24 Bedengan (BD01-BD24)</p>
+                </div>
+            </div>
+
+            <!-- Tab Buttons -->
+            <div class="flex bg-emerald-900/60 p-1 rounded-xl gap-1 text-sm">
+                <button id="btn-tab-sheet" onclick="switchTab('sheet')" class="px-4 py-2 rounded-lg font-medium transition flex items-center gap-2 bg-white text-emerald-900 shadow">
+                    <i data-lucide="table" class="w-4 h-4"></i> Simulator Sheet
+                </button>
+                <button id="btn-tab-guide" onclick="switchTab('guide')" class="px-4 py-2 rounded-lg font-medium transition flex items-center gap-2 hover:bg-emerald-800 text-emerald-100">
+                    <i data-lucide="code-2" class="w-4 h-4"></i> Rumus Google Sheets
+                </button>
+                <button id="btn-tab-export" onclick="switchTab('export')" class="px-4 py-2 rounded-lg font-medium transition flex items-center gap-2 hover:bg-emerald-800 text-emerald-100">
+                    <i data-lucide="download" class="w-4 h-4"></i> Ekspor CSV
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content Area -->
+    <main class="flex-1 max-w-7xl w-full mx-auto p-4 flex flex-col">
+
+        <!-- TAB 1: SPREADSHEET SIMULATOR -->
+        <div id="tab-sheet" class="flex-1 flex flex-col gap-4">
+            
+            <!-- Controls & Legend Bar -->
+            <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-200 flex flex-wrap items-center justify-between gap-4">
+                
+                <!-- Legend -->
+                <div class="flex items-center gap-2 flex-wrap text-xs">
+                    <span class="font-semibold text-slate-500 mr-1">Status Legend:</span>
+                    <span class="px-2.5 py-1 rounded status-S border border-yellow-300">S = Semai</span>
+                    <span class="px-2.5 py-1 rounded status-T border border-green-300">T = Tanam</span>
+                    <span class="px-2.5 py-1 rounded status-P border border-orange-300">P = Panen</span>
+                    <span class="px-2.5 py-1 rounded status-R border border-red-300">R = Rest</span>
+                </div>
+
+                <!-- Plant Filter & Date Generator Controls -->
+                <div class="flex items-center gap-3 flex-wrap">
+                    <!-- Filter Tanaman -->
+                    <div class="flex items-center gap-1.5 text-xs bg-slate-50 px-2.5 py-1 rounded-lg border border-slate-200">
+                        <i data-lucide="filter" class="w-3.5 h-3.5 text-emerald-600"></i>
+                        <label class="text-slate-600 font-medium">Sorot Tanaman:</label>
+                        <select id="plant-filter-select" onchange="applyPlantFilter()" class="border rounded px-2 py-0.5 text-slate-700 bg-white focus:outline-none focus:ring-1 focus:ring-emerald-500">
+                            <option value="">-- Semua Tanaman --</option>
+                            <!-- Populated dynamically -->
+                        </select>
+                    </div>
+
+                    <div class="flex items-center gap-2 text-xs">
+                        <label class="text-slate-500 font-medium">Mulai Tanggal:</label>
+                        <input type="date" id="start-date-input" value="2026-10-26" onchange="regenerateDates()" class="border rounded px-2 py-1 text-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-500">
+                    </div>
+                    <button onclick="addMoreRows(15)" class="text-xs bg-slate-100 hover:bg-slate-200 text-slate-700 px-3 py-1.5 rounded-lg border flex items-center gap-1 font-medium">
+                        <i data-lucide="plus" class="w-3.5 h-3.5"></i> +15 Hari
+                    </button>
+                    <button onclick="clearAllData()" class="text-xs text-rose-600 hover:bg-rose-50 px-2.5 py-1.5 rounded-lg border border-rose-200 font-medium">
+                        Reset Status
+                    </button>
+                </div>
+            </div>
+
+            <!-- Spreadsheet Grid Container -->
+            <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden flex-1 flex flex-col min-h-[500px]">
+                <div class="overflow-auto sheet-scroll flex-1 max-h-[600px] relative" id="sheet-wrapper">
+                    <table class="w-full text-xs text-left border-collapse min-w-[2000px]">
+                        <thead>
+                            <tr class="bg-slate-800 text-slate-200 font-semibold uppercase text-[11px] tracking-wider">
+                                <th class="p-2.5 border-b border-r border-slate-700 w-[90px] sticky-header-col-1 bg-slate-800 text-center">Bulan</th>
+                                <th class="p-2.5 border-b border-r border-slate-700 w-[80px] sticky-header-col-2 bg-slate-800 text-center">Hari</th>
+                                <th class="p-2.5 border-b border-r border-slate-700 w-[100px] sticky-header-col-3 bg-slate-800 text-center">Tanggal</th>
+                                <th class="p-2.5 border-b border-r border-slate-700 w-[90px] sticky-header-col-4 bg-emerald-900 text-emerald-200 text-center">Rate Aktif</th>
+                                
+                                <!-- 9 Hydroponic Systems -->
+                                <th colspan="9" class="p-2 border-b border-r border-emerald-700 bg-emerald-950 text-emerald-300 text-center">Sistem Hidroponik (9 Unit)</th>
+                                
+                                <!-- 24 Bedengan -->
+                                <th colspan="24" class="p-2 border-b border-slate-700 bg-slate-900 text-teal-300 text-center">Bedengan (BD01 - BD24)</th>
+                            </tr>
+                            <tr class="bg-slate-100 text-slate-700 font-semibold border-b border-slate-300">
+                                <th class="p-2 border-r border-slate-300 sticky-header-col-1 bg-slate-100 text-center text-slate-500">A</th>
+                                <th class="p-2 border-r border-slate-300 sticky-header-col-2 bg-slate-100 text-center text-slate-500">B</th>
+                                <th class="p-2 border-r border-slate-300 sticky-header-col-3 bg-slate-100 text-center text-slate-500">C</th>
+                                <th class="p-2 border-r border-slate-300 sticky-header-col-4 bg-emerald-50 text-center text-emerald-800">D</th>
+                                
+                                <!-- System Headers -->
+                                <script>
+                                    const sysNames = ['A1','A2','A3','B1','B2','B3','C1','C2','C3'];
+                                    sysNames.forEach(sys => {
+                                        document.write(`<th class="p-2 border-r border-slate-300 text-center bg-emerald-100 text-emerald-900 w-[55px]">${sys}</th>`);
+                                    });
+                                    for(let i=1; i<=24; i++) {
+                                        const bd = 'BD' + (i<10?'0':'') + i;
+                                        document.write(`<th class="p-2 border-r border-slate-300 text-center bg-teal-50 text-teal-900 w-[55px]">${bd}</th>`);
+                                    }
+                                </script>
+                            </tr>
+                            <!-- NEW ROW: Jenis Tanaman Header Selector -->
+                            <tr class="bg-amber-50 text-slate-700 border-b border-amber-200 text-[11px]" id="crop-header-row">
+                                <th class="p-1.5 border-r border-amber-200 sticky-col-1 bg-amber-100 text-center font-semibold text-amber-900">Jenis Tanaman</th>
+                                <th class="p-1.5 border-r border-amber-200 sticky-col-2 bg-amber-100 text-center text-slate-400">-</th>
+                                <th class="p-1.5 border-r border-amber-200 sticky-col-3 bg-amber-100 text-center text-slate-400">-</th>
+                                <th class="p-1.5 border-r border-amber-200 sticky-col-4 bg-amber-100 text-center text-slate-400">-</th>
+                                <!-- Crop Dropdowns Populated Dynamically -->
+                            </tr>
+                        </thead>
+                        <tbody id="sheet-body">
+                            <!-- Rows dynamically populated by JavaScript -->
+                        </tbody>
+                    </table>
+                </div>
+                <div class="p-3 bg-slate-50 border-t border-slate-200 text-xs text-slate-500 flex justify-between items-center">
+                    <span>💡 <strong>Tips:</strong> Pilih jenis tanaman di baris ke-2 header, lalu klik sel status (S/T/P/R) untuk mengatur siklus harian.</span>
+                    <span id="row-count-info">Menampilkan 30 hari</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- TAB 2: GOOGLE SHEETS FORMULA GUIDE -->
+        <div id="tab-guide" class="hidden space-y-6">
+            
+            <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+                <h2 class="text-lg font-bold text-slate-800 mb-2 flex items-center gap-2">
+                    <i data-lucide="file-spreadsheet" class="w-5 h-5 text-emerald-600"></i>
+                    Struktur Baris & Cara Menambahkan Dropdown "Jenis Tanaman"
+                </h2>
+                <p class="text-sm text-slate-600 mb-4">
+                    Di Google Sheets, letakkan daftar nama sistem di <strong>Baris 2</strong>, dan pilihan <strong>Jenis Tanaman</strong> di <strong>Baris 3</strong>. Baris data harian dimulai dari <strong>Baris 4</strong>.
+                </p>
+
+                <!-- Formula Reference Table -->
+                <div class="overflow-x-auto border border-slate-200 rounded-lg mb-6">
+                    <table class="w-full text-xs text-left">
+                        <thead class="bg-slate-100 font-semibold text-slate-700 uppercase">
+                            <tr>
+                                <th class="p-3 border-b">Baris / Kolom</th>
+                                <th class="p-3 border-b">Isi / Header</th>
+                                <th class="p-3 border-b">Formula / Pengaturan</th>
+                                <th class="p-3 border-b">Fungsi / Keterangan</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-slate-200 text-slate-600">
+                            <tr>
+                                <td class="p-3 font-mono font-bold text-emerald-700">Baris 2</td>
+                                <td class="p-3 font-semibold text-slate-800">Nama Sistem / Bedengan</td>
+                                <td class="p-3">E2:AK2 = A1, A2, ..., BD24</td>
+                                <td class="p-3">Judul kolom untuk 9 sistem & 24 bedengan.</td>
+                            </tr>
+                            <tr class="bg-amber-50/50">
+                                <td class="p-3 font-mono font-bold text-amber-800">Baris 3</td>
+                                <td class="p-3 font-semibold text-slate-800">Jenis Tanaman</td>
+                                <td class="p-3 font-mono bg-white text-emerald-800 border rounded p-1">Dropdown (Data Validation)</td>
+                                <td class="p-3">Pilih tanaman aktif (Selada, Tomat, Bawang Merah, dll) dari daftar validasi data.</td>
+                            </tr>
+                            <tr>
+                                <td class="p-3 font-mono font-bold text-emerald-700">Kolom A (Baris 4+)</td>
+                                <td class="p-3 font-semibold text-slate-800">Bulan</td>
+                                <td class="p-3 font-mono bg-slate-50 text-blue-700">=TEXT(C4; "MMMM")</td>
+                                <td class="p-3">Membaca bulan otomatis (misal: "Oktober") dari kolom C.</td>
+                            </tr>
+                            <tr>
+                                <td class="p-3 font-mono font-bold text-emerald-700">Kolom B (Baris 4+)</td>
+                                <td class="p-3 font-semibold text-slate-800">Hari</td>
+                                <td class="p-3 font-mono bg-slate-50 text-blue-700">=TEXT(C4; "dddd")</td>
+                                <td class="p-3">Membaca nama hari otomatis (misal: "Senin") dari kolom C.</td>
+                            </tr>
+                            <tr>
+                                <td class="p-3 font-mono font-bold text-emerald-700">Kolom C (Baris 4)</td>
+                                <td class="p-3 font-semibold text-slate-800">Tanggal Awal</td>
+                                <td class="p-3 font-mono bg-slate-50 font-bold text-slate-800">26/10/2026</td>
+                                <td class="p-3">Ketik tanggal awal di C4. Di C5 pakai formula `=C4+1`, lalu tarik ke bawah.</td>
+                            </tr>
+                            <tr>
+                                <td class="p-3 font-mono font-bold text-emerald-700">Kolom D (Baris 4+)</td>
+                                <td class="p-3 font-semibold text-slate-800">Rate Aktif</td>
+                                <td class="p-3 font-mono bg-slate-50 text-blue-700">=COUNTA(E4:AK4)</td>
+                                <td class="p-3">Menghitung jumlah total sistem & bedengan yang terisi status.</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Step-by-step for Data Validation -->
+                <h3 class="text-md font-bold text-slate-800 mb-3 flex items-center gap-2">
+                    <i data-lucide="list-filter" class="w-4 h-4 text-emerald-600"></i>
+                    Cara Membuat Dropdown "Jenis Tanaman" di Google Sheets
+                </h3>
+                <div class="border rounded-lg p-4 bg-slate-50 space-y-2 text-xs text-slate-700">
+                    <ol class="list-decimal list-inside space-y-2">
+                        <li>Blok sel lokasi tanaman dari <strong>E3 sampai AK3</strong>.</li>
+                        <li>Klik menu <strong>Data</strong> &rarr; <strong>Validasi Data (Data Validation)</strong> &rarr; <strong>Tambah aturan (Add rule)</strong>.</li>
+                        <li>Pada kriteria, pilih <strong>Daftar elemen (Dropdown)</strong>.</li>
+                        <li>Masukkan opsi tanaman (misal: <code class="bg-white border px-1.5 py-0.5 rounded text-emerald-800">Selada, Petsai (sawi putih), Tomat, Bawang Merah, Cabai, Terong, Pare, Jahe, Kunyit</code> dll).</li>
+                        <li>Klik <strong>Selesai (Done)</strong>. Sekarang setiap kolom memiliki pilihan dropdown jenis tanaman yang rapi!</li>
+                    </ol>
+                </div>
+
+                <!-- Format Switch Alert -->
+                <div class="bg-amber-50 border border-amber-200 rounded-lg p-4 text-xs text-amber-800 mb-6 flex items-start gap-3">
+                    <i data-lucide="alert-triangle" class="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5"></i>
+                    <div>
+                        <strong class="font-semibold block text-amber-900 mb-0.5">Catatan Format Titik Koma (;) vs Koma (,):</strong>
+                        Jika Google Sheets Anda berbahasa Indonesia, gunakan titik koma `;` contoh: `=TEXT(C3; "MMMM")`. Jika Google Sheets Anda diatur dalam Bahasa Inggris/Regional US, ganti titik koma dengan koma `,` contoh: `=TEXT(C3, "MMMM")`.
+                    </div>
+                </div>
+
+                <!-- Conditional Formatting Guide -->
+                <h3 class="text-md font-bold text-slate-800 mb-3 flex items-center gap-2">
+                    <i data-lucide="palette" class="w-4 h-4 text-emerald-600"></i>
+                    Cara Membuat Warna Otomatis (Conditional Formatting)
+                </h3>
+                <div class="grid md:grid-cols-2 gap-4 text-xs">
+                    <div class="border rounded-lg p-4 bg-slate-50 space-y-2">
+                        <span class="font-bold text-slate-700 text-sm">Langkah di Google Sheets:</span>
+                        <ol class="list-decimal list-inside space-y-1.5 text-slate-600">
+                            <li>Blok seluruh area data dari sel <code class="bg-white px-1 py-0.5 border rounded">E3</code> sampai <code class="bg-white px-1 py-0.5 border rounded">AK1000</code>.</li>
+                            <li>Klik menu **Format** &rarr; **Pewarnaan Bersyarat (Conditional Formatting)**.</li>
+                            <li>Pada opsi *Format sel jika...*, pilih **Teks persis sama dengan**.</li>
+                            <li>Buat 4 Aturan Warna sesuai tabel di sebelah kanan.</li>
+                        </ol>
+                    </div>
+
+                    <div class="border rounded-lg p-4 bg-white space-y-2">
+                        <span class="font-bold text-slate-700 text-sm">Aturan Warna Status:</span>
+                        <div class="space-y-2">
+                            <div class="flex items-center justify-between p-2 rounded status-S border">
+                                <span>Teks: <strong>S</strong></span>
+                                <span>Isi Warna: Kuning Terang</span>
+                            </div>
+                            <div class="flex items-center justify-between p-2 rounded status-T border">
+                                <span>Teks: <strong>T</strong></span>
+                                <span>Isi Warna: Hijau Terang</span>
+                            </div>
+                            <div class="flex items-center justify-between p-2 rounded status-P border">
+                                <span>Teks: <strong>P</strong></span>
+                                <span>Isi Warna: Oranye Muda</span>
+                            </div>
+                            <div class="flex items-center justify-between p-2 rounded status-R border">
+                                <span>Teks: <strong>R</strong></span>
+                                <span>Isi Warna: Merah Muda / Abu-abu</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+
+        </div>
+
+        <!-- TAB 3: EXPORT CSV -->
+        <div id="tab-export" class="hidden space-y-6">
+            <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+                <h2 class="text-lg font-bold text-slate-800 mb-2 flex items-center gap-2">
+                    <i data-lucide="download-cloud" class="w-5 h-5 text-emerald-600"></i>
+                    Unduh File Data Siap Import ke Google Sheets
+                </h2>
+                <p class="text-sm text-slate-600 mb-6">
+                    Anda dapat mengunduh file CSV yang sudah terformat dengan struktur vertikal di bawah ini, lalu buka Google Sheets &rarr; **File** &rarr; **Impor** &rarr; **Upload file**.
+                </p>
+
+                <div class="flex flex-wrap gap-4 items-center">
+                    <button onclick="downloadCSV()" class="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold px-5 py-2.5 rounded-lg text-sm shadow flex items-center gap-2 transition">
+                        <i data-lucide="file-down" class="w-4 h-4"></i> Unduh File CSV (.csv)
+                    </button>
+                    <button onclick="copyCSVToClipboard()" class="bg-slate-800 hover:bg-slate-900 text-white font-semibold px-5 py-2.5 rounded-lg text-sm shadow flex items-center gap-2 transition">
+                        <i data-lucide="copy" class="w-4 h-4"></i> Salin Data ke Clipboard
+                    </button>
+                </div>
+
+                <!-- Preview CSV Code -->
+                <div class="mt-6">
+                    <label class="block text-xs font-semibold text-slate-500 mb-2">PREVIEW DATA CSV (Ketik / Salin Langsung):</label>
+                    <textarea id="csv-preview" readonly class="w-full h-64 p-3 bg-slate-900 text-emerald-400 font-mono text-xs rounded-lg border border-slate-800 focus:outline-none"></textarea>
+                </div>
+            </div>
+        </div>
+
+    </main>
+
+    <!-- Notification Toast -->
+    <div id="toast" class="fixed bottom-5 right-5 bg-slate-900 text-white px-4 py-2.5 rounded-xl shadow-lg text-xs font-medium opacity-0 transition-opacity duration-300 pointer-events-none flex items-center gap-2">
+        <i data-lucide="check-circle" class="w-4 h-4 text-emerald-400"></i>
+        <span id="toast-message">Pesan notifikasi</span>
+    </div>
+
+    <!-- JavaScript Logic -->
+    <script>
+        // List of crops provided by user
+        const plantList = [
+            "Petsai (sawi putih)", "Selada", "Tomat", "Bawang Merah", "Bawang Putih", 
+            "Buncis", "Lobak", "Biet", "Terong", "Pare", "Asparagus", "Jagung", 
+            "Gandum", "Talas", "Apel", "Blewah", "Pepaya", "Jeruk", "Mangga", 
+            "Alpukat", "Rambutan", "Durian", "Semangka", "Belimbing", "Melon", 
+            "Cempedak", "Duku", "Sirsak", "Sawo", "Jahe", "Vanili", "Serai", 
+            "Kayu Manis", "Kemiri", "Lada", "Kunyit", "Kencur", "Kapulaga", "Lengkuas"
+        ];
+
+        // Initial setup data
+        const systems = ['A1','A2','A3','B1','B2','B3','C1','C2','C3'];
+        const bedengan = Array.from({length: 24}, (_, i) => 'BD' + String(i + 1).padStart(2, '0'));
+        const allLocations = [...systems, ...bedengan];
+        const statusOptions = ['', 'S', 'T', 'P', 'R'];
+
+        // Assign default crop allocation for demo
+        let locationCrops = {};
+        allLocations.forEach((loc, idx) => {
+            locationCrops[loc] = plantList[idx % plantList.length];
+        });
+
+        let activePlantFilter = "";
+        let rowCount = 30;
+        let startDate = new Date(2026, 9, 26); // 26 Oktober 2026
+        let sheetData = {}; // Stores cell values: { 'rowIdx-locIdx': 'S' }
+
+        // Initialize icons
+        lucide.createIcons();
+
+        // On Load
+        window.onload = function() {
+            populatePlantFilterDropdown();
+            renderCropHeaderRow();
+            seedDemoData();
+            renderTable();
+            updateCSVPreview();
+        };
+
+        function populatePlantFilterDropdown() {
+            const select = document.getElementById('plant-filter-select');
+            select.innerHTML = '<option value="">-- Semua Tanaman --</option>';
+            plantList.forEach(plant => {
+                const opt = document.createElement('option');
+                opt.value = plant;
+                opt.textContent = plant;
+                select.appendChild(opt);
+            });
+        }
+
+        function renderCropHeaderRow() {
+            const row = document.getElementById('crop-header-row');
+            // Remove existing location crop headers if any
+            const existingCells = row.querySelectorAll('.crop-header-cell');
+            existingCells.forEach(c => c.remove());
+
+            allLocations.forEach((loc, lIdx) => {
+                const th = document.createElement('th');
+                th.className = 'p-1 border-r border-amber-200 text-center bg-amber-50/90 crop-header-cell';
+                
+                let selectHtml = `<select onchange="updateLocationCrop('${loc}', this.value)" class="w-full text-[10px] bg-white border border-amber-300 rounded px-1 py-0.5 text-slate-800 focus:outline-none focus:ring-1 focus:ring-amber-500 font-normal">`;
+                selectHtml += `<option value="">-- Pilih --</option>`;
+                plantList.forEach(plant => {
+                    const selected = locationCrops[loc] === plant ? 'selected' : '';
+                    selectHtml += `<option value="${plant}" ${selected}>${plant}</option>`;
+                });
+                selectHtml += `</select>`;
+
+                th.innerHTML = selectHtml;
+                row.appendChild(th);
+            });
+        }
+
+        function updateLocationCrop(loc, newPlant) {
+            locationCrops[loc] = newPlant;
+            renderTable();
+            updateCSVPreview();
+            showToast(`Tanaman di ${loc} diubah ke ${newPlant || 'Kosong'}`);
+        }
+
+        function applyPlantFilter() {
+            activePlantFilter = document.getElementById('plant-filter-select').value;
+            renderTable();
+        }
+
+        function switchTab(tab) {
+            document.getElementById('tab-sheet').classList.add('hidden');
+            document.getElementById('tab-guide').classList.add('hidden');
+            document.getElementById('tab-export').classList.add('hidden');
+
+            document.getElementById('btn-tab-sheet').className = 'px-4 py-2 rounded-lg font-medium transition flex items-center gap-2 hover:bg-emerald-800 text-emerald-100';
+            document.getElementById('btn-tab-guide').className = 'px-4 py-2 rounded-lg font-medium transition flex items-center gap-2 hover:bg-emerald-800 text-emerald-100';
+            document.getElementById('btn-tab-export').className = 'px-4 py-2 rounded-lg font-medium transition flex items-center gap-2 hover:bg-emerald-800 text-emerald-100';
+
+            if(tab === 'sheet') {
+                document.getElementById('tab-sheet').classList.remove('hidden');
+                document.getElementById('btn-tab-sheet').className = 'px-4 py-2 rounded-lg font-medium transition flex items-center gap-2 bg-white text-emerald-900 shadow';
+            } else if(tab === 'guide') {
+                document.getElementById('tab-guide').classList.remove('hidden');
+                document.getElementById('btn-tab-guide').className = 'px-4 py-2 rounded-lg font-medium transition flex items-center gap-2 bg-white text-emerald-900 shadow';
+            } else if(tab === 'export') {
+                document.getElementById('tab-export').classList.remove('hidden');
+                document.getElementById('btn-tab-export').className = 'px-4 py-2 rounded-lg font-medium transition flex items-center gap-2 bg-white text-emerald-900 shadow';
+                updateCSVPreview();
+            }
+        }
+
+        function seedDemoData() {
+            // Seed sample rotation demo
+            for(let r=0; r<10; r++) {
+                sheetData[`${r}-0`] = 'S'; // A1 Semai
+                sheetData[`${r}-1`] = 'T'; // A2 Tanam
+                sheetData[`${r}-2`] = 'P'; // A3 Panen
+                sheetData[`${r}-9`] = 'T'; // BD01 Tanam
+                sheetData[`${r}-10`] = 'S'; // BD02 Semai
+            }
+            for(let r=10; r<25; r++) {
+                sheetData[`${r}-0`] = 'T'; 
+                sheetData[`${r}-1`] = 'P'; 
+                sheetData[`${r}-2`] = 'R'; 
+                sheetData[`${r}-9`] = 'P'; 
+            }
+        }
+
+        function regenerateDates() {
+            const inputVal = document.getElementById('start-date-input').value;
+            if(inputVal) {
+                const parts = inputVal.split('-');
+                startDate = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
+                renderTable();
+                updateCSVPreview();
+            }
+        }
+
+        function addMoreRows(num) {
+            rowCount += num;
+            renderTable();
+            updateCSVPreview();
+            showToast(`Menambahkan ${num} hari ke jadwal`);
+        }
+
+        function clearAllData() {
+            sheetData = {};
+            renderTable();
+            updateCSVPreview();
+            showToast('Semua status direset');
+        }
+
+        function cycleStatus(rIdx, lIdx) {
+            const key = `${rIdx}-${lIdx}`;
+            const current = sheetData[key] || '';
+            const nextIdx = (statusOptions.indexOf(current) + 1) % statusOptions.length;
+            const nextStatus = statusOptions[nextIdx];
+
+            if(nextStatus === '') {
+                delete sheetData[key];
+            } else {
+                sheetData[key] = nextStatus;
+            }
+
+            renderTable();
+            updateCSVPreview();
+        }
+
+        function renderTable() {
+            const tbody = document.getElementById('sheet-body');
+            tbody.innerHTML = '';
+
+            const daysIndo = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
+            const monthsIndo = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
+
+            for (let r = 0; r < rowCount; r++) {
+                const currentDate = new Date(startDate);
+                currentDate.setDate(startDate.getDate() + r);
+
+                const dayName = daysIndo[currentDate.getDay()];
+                const monthName = monthsIndo[currentDate.getMonth()];
+                const dateFormatted = `${String(currentDate.getDate()).padStart(2, '0')}/${String(currentDate.getMonth() + 1).padStart(2, '0')}/${currentDate.getFullYear()}`;
+
+                // Calculate Occupation Rate
+                let activeCount = 0;
+                allLocations.forEach((_, lIdx) => {
+                    if (sheetData[`${r}-${lIdx}`]) activeCount++;
+                });
+
+                const tr = document.createElement('tr');
+                tr.className = 'border-b border-slate-200 hover:bg-slate-50 transition-colors text-center';
+
+                // Fixed Date Columns
+                let html = `
+                    <td class="p-2 border-r border-slate-200 sticky-col-1 bg-white text-slate-600 font-medium">${monthName}</td>
+                    <td class="p-2 border-r border-slate-200 sticky-col-2 bg-white text-slate-700 font-medium">${dayName}</td>
+                    <td class="p-2 border-r border-slate-200 sticky-col-3 bg-slate-50 text-slate-800 font-mono font-semibold">${dateFormatted}</td>
+                    <td class="p-2 border-r border-slate-200 sticky-col-4 bg-emerald-50 text-emerald-800 font-bold font-mono">${activeCount} / 33</td>
+                `;
+
+                // Status Columns for Systems & Bedengan
+                allLocations.forEach((loc, lIdx) => {
+                    const status = sheetData[`${r}-${lIdx}`] || '';
+                    const plant = locationCrops[loc] || 'Tidak diset';
+                    
+                    let statusClass = status ? `status-${status}` : 'hover:bg-slate-100';
+
+                    // Check if matching filter
+                    const isFilteredMatch = activePlantFilter && locationCrops[loc] === activePlantFilter;
+                    if(activePlantFilter) {
+                        if(isFilteredMatch) {
+                            statusClass += ' ring-2 ring-emerald-500 font-bold';
+                        } else {
+                            statusClass += ' opacity-40';
+                        }
+                    }
+
+                    const isSystem = lIdx < 9;
+                    const borderBg = isSystem ? 'border-emerald-100' : 'border-slate-200';
+
+                    html += `
+                        <td onclick="cycleStatus(${r}, ${lIdx})" 
+                            class="p-1 border-r ${borderBg} cursor-pointer transition select-none ${statusClass}" 
+                            title="Lokasi: ${loc} | Tanaman: ${plant} | Tanggal: ${dateFormatted} | Klik untuk ganti status (S/T/P/R)">
+                            ${status}
+                        </td>
+                    `;
+                });
+
+                tr.innerHTML = html;
+                tbody.appendChild(tr);
+            }
+
+            document.getElementById('row-count-info').textContent = `Menampilkan ${rowCount} hari (Mulai: ${startDate.getDate()} ${monthsIndo[startDate.getMonth()]} ${startDate.getFullYear()})`;
+        }
+
+        function generateCSVString() {
+            let csv = [];
+            // Legend header
+            csv.push(['Lokasi: Kebun Kampung Bugis', '', '', 'S', 'Semai', '', 'T', 'Tanam', '', 'P', 'Panen', '', 'R', 'Rest'].join(','));
+            
+            // Header Columns (Row 2 in Sheets)
+            const headers = ['Bulan', 'Hari', 'Tanggal', 'Rate Aktif', ...allLocations];
+            csv.push(headers.join(','));
+
+            // Crop Row (Row 3 in Sheets)
+            const cropRow = ['Jenis Tanaman', '', '', '', ...allLocations.map(loc => `"${locationCrops[loc] || ''}"`)];
+            csv.push(cropRow.join(','));
+
+            // Data Rows with Google Sheet formulas (Starting Row 4 in Sheets)
+            for (let r = 0; r < rowCount; r++) {
+                const sheetRow = r + 4; // Data starts at Row 4 in Excel/Sheets
+                let dateVal = '';
+
+                if (r === 0) {
+                    const d = String(startDate.getDate()).padStart(2, '0');
+                    const m = String(startDate.getMonth() + 1).padStart(2, '0');
+                    const y = startDate.getFullYear();
+                    dateVal = `${m}/${d}/${y}`; // Raw date format
+                } else {
+                    dateVal = `=C${sheetRow - 1}+1`;
+                }
+
+                const monthFormula = `"=TEXT(C${sheetRow}; ""MMMM"")"`;
+                const dayFormula = `"=TEXT(C${sheetRow}; ""dddd"")"`;
+                const rateFormula = `"=COUNTA(E${sheetRow}:AK${sheetRow})"`;
+
+                let rowArr = [monthFormula, dayFormula, dateVal, rateFormula];
+
+                allLocations.forEach((_, lIdx) => {
+                    rowArr.push(sheetData[`${r}-${lIdx}`] || '');
+                });
+
+                csv.push(rowArr.join(','));
+            }
+
+            return csv.join('\n');
+        }
+
+        function updateCSVPreview() {
+            document.getElementById('csv-preview').value = generateCSVString();
+        }
+
+        function downloadCSV() {
+            const csvData = generateCSVString();
+            const blob = new Blob([csvData], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.setAttribute('href', url);
+            link.setAttribute('download', `Jadwal_Tanam_Kampung_Bugis_${new Date().toISOString().slice(0,10)}.csv`);
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            showToast('File CSV berhasil diunduh!');
+        }
+
+        function copyCSVToClipboard() {
+            const csvData = generateCSVString();
+            const textarea = document.createElement('textarea');
+            textarea.value = csvData;
+            document.body.appendChild(textarea);
+            textarea.select();
+            document.execCommand('copy');
+            document.body.removeChild(textarea);
+            showToast('Data CSV disalin ke Clipboard!');
+        }
+
+        function showToast(msg) {
+            const toast = document.getElementById('toast');
+            document.getElementById('toast-message').textContent = msg;
+            toast.classList.remove('opacity-0', 'pointer-events-none');
+            setTimeout(() => {
+                toast.classList.add('opacity-0', 'pointer-events-none');
+            }, 3000);
+        }
+    </script>
+</body>
+</html>
